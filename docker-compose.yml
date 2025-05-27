@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  mqtt-dashboard:
+    image: mqtt-dashboard:latest
+    container_name: mqtt-dashboard
+    ports:
+      - "30080:80"  # Menggunakan port 30080
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./dist:/usr/share/nginx/html
+    restart: always  # Pastikan container selalu restart jika mati
+    environment:
+      - NODE_ENV=production
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - mqtt-network
+
+networks:
+  mqtt-network:
+    driver: bridge

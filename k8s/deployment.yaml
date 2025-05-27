@@ -1,0 +1,147 @@
+---
+# ConfigMap for Nginx configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nginx-config
+  labels:
+    app: mqtt-dashboard
+data:
+  nginx.conf: |
+    user  nginx;
+    worker_processes  auto;
+
+    error_log  /var/log/nginx/error.log notice;
+    pid        /run/nginx.pid;
+
+    events {
+        worker_connections  1024;
+    }
+
+
+    http {
+        include       /etc/nginx/mime.types;
+        default_type  application/octet-stream;
+
+        log_format  main  '$remote_addr - $remote_user [$time_local] "$request" '
+                          '$status $body_bytes_sent "$http_referer" '
+                          '"$http_user_agent" "$http_x_forwarded_for"';
+
+
+        access_log  /var/log/nginx/access.log  main;
+
+        sendfile        on;
+        #tcp_nopush     on;
+
+
+        keepalive_timeout  65;
+
+        #gzip  on;
+
+
+        include /etc/nginx/conf.d/*.conf;
+    }
+---
+# Server configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nginx-server-config
+  labels:
+    app: mqtt-dashboard
+data:
+  default.conf: |
+    server {
+        listen       8080;
+        server_name  _;
+        root   /usr/share/nginx/html;
+        index  index.html;
+        
+        # Enable gzip compression
+        gzip on;
+        gzip_types text/plain text/css application/json application/javascript text/xml application/xml application/xml+rss text/javascript;
+        
+        # Handle requests to /assets/ directory
+        location /assets/ {
+            alias /usr/share/nginx/html/assets/;
+            expires 30d;
+            add_header Cache-Control "public, no-transform";
+            access_log off;
+        }
+
+
+        # Handle all other requests
+        location / {
+            try_files $uri $uri/ /index.html;
+        }
+
+
+        # Cache control for static files
+        location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg)$ {
+            root /usr/share/nginx/html;
+            expires 30d;
+            add_header Cache-Control "public, no-transform";
+        }
+    }
+---
+# Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mqtt-dashboard
+  labels:
+    app: mqtt-dashboard
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: mqtt-dashboard
+  template:
+    metadata:
+      labels:
+        app: mqtt-dashboard
+    spec:
+      containers:
+      - name: mqtt-dashboard
+        image: mqtt-dashboard:latest
+        ports:
+        - containerPort: 8080
+        resources:
+          limits:
+            cpu: "0.5"
+            memory: "512Mi"
+          requests:
+            cpu: "0.2"
+            memory: "256Mi"
+        volumeMounts:
+        - name: nginx-config
+          mountPath: /etc/nginx/nginx.conf
+          subPath: nginx.conf
+        - name: nginx-server-config
+          mountPath: /etc/nginx/conf.d/default.conf
+          subPath: default.conf
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 5
+      volumes:
+      - name: nginx-config
+        configMap:
+          name: nginx-config
+          items:
+          - key: nginx.conf
+            path: nginx.conf
+      - name: nginx-server-config
+        configMap:
+          name: nginx-server-config
+          items:
+          - key: default.conf
+            path: default.conf
