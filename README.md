@@ -122,14 +122,33 @@ src/
 └── index.css          # Global styles
 ```
 
-## Technologies Used
+## Technologies & UI Plugins Used
 
-- React 18
-- TypeScript
-- Tailwind CSS
-- MQTT.js
-- Hero Icons
-- Vite
+- **React 18** — UI library utama untuk membangun dashboard.
+- **TypeScript** — Supaya code lebih aman dan maintainable.
+- **Tailwind CSS** — Framework utility-first CSS untuk tampilan responsif, modern, dan mudah dikustomisasi.
+- **@tailwindcss/forms & typography** — Plugin Tailwind untuk mempercantik tampilan form dan teks.
+- **clsx & class-variance-authority** — Untuk mengelola class CSS dinamis dengan mudah.
+- **Framer Motion** — Animasi UI yang halus dan interaktif.
+- **@headlessui/react** — Komponen UI siap pakai yang mudah dikustomisasi dan tetap accessible.
+- **Hero Icons** — Icon SVG gratis yang modern, digunakan untuk berbagai status, tombol, dsb.
+- **Lucide React** — Icon SVG modern lain untuk variasi visual.
+- **@radix-ui/react-progress & slot** — Komponen progres bar dan utilitas slot untuk UI modular.
+- **Recharts** — Grafik interaktif dan responsif.
+- **MQTT.js** — Library koneksi MQTT dari browser.
+- **Vite** — Build tool modern untuk pengembangan super cepat.
+
+### Font & Styling
+- **Inter** — Google Fonts untuk tampilan teks bersih dan profesional.
+- **Dark mode** — Didukung penuh, otomatis mengikuti preferensi sistem.
+
+### Kenapa UI-nya Responsif & Ikonik?
+- **Tailwind CSS** + plugin forms/typography membuat layout responsif, mobile-first, dan konsisten di berbagai device.
+- **Hero Icons & Lucide** menyediakan icon SVG yang tajam, ringan, dan mudah diganti warnanya.
+- **Framer Motion** menambah animasi transisi yang smooth.
+- **@headlessui/react** membantu membuat komponen seperti switch, modal, dsb yang tetap accessible.
+
+Lihat daftar dependensi lengkap di `package.json` untuk library lain yang digunakan.
 
 ## License
 
