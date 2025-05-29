@@ -165,9 +165,20 @@ Kontribusi terbuka untuk pengembangan lebih lanjut. Silakan buat issue atau pull
 
 ## Dikembangkan Oleh
 
-- [Nama Pengembang]
-- [Kontak Email]
+- **Anak Agung Duwi Arsana**
+- [GitHub](https://github.com/duwiarsana)
+- [YouTube](https://www.youtube.com/@anakagungduwiarsana)
+- [Instagram](https://instagram.com/duwiarsana)
+- WhatsApp: [0857-3824-4251](https://wa.me/6285738244251)
+
+## 💰 Dukung Proyek Ini
+
+Jika Anda merasa proyek ini bermanfaat, Anda bisa mendukung pengembangan lebih lanjut dengan berdonasi melalui:
+
+[![Saweria](https://img.shields.io/badge/Saweria-FF5E5E?style=for-the-badge&logo=kofi&logoColor=white)](https://saweria.co/duwiarsana)
+
+Dukungan Anda sangat berarti untuk pengembangan fitur-fitur baru dan perbaikan proyek ini.
 
 ## Dukungan
 
-Untuk dukungan teknis, silakan buat issue di repository ini.
+Untuk dukungan teknis atau pertanyaan, silakan buat issue baru di repository ini.
