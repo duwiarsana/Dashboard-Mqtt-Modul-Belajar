@@ -1,67 +1,70 @@
-# MQTT Dashboard
+# Sistem Kos-Kosan Pintar UD Padma
 
-A professional, clean, and responsive dashboard for monitoring and controlling IoT devices via MQTT. Features dark mode, real-time updates, and an intuitive user interface.
+Dashboard profesional untuk monitoring dan manajemen kos-kosan berbasis IoT. Menyediakan tampilan real-time penggunaan listrik, air, dan status kamar dengan antarmuka yang responsif dan mudah digunakan.
 
-![Dashboard Preview](public/dashboard-preview.png)
+![Dashboard](public/dashboard.png)
 
-## Features
+## Fitur Utama
 
-- 📊 Real-time MQTT data visualization
-- 🌓 Dark/Light mode toggle
-- 🚦 Parking status monitoring
-- 🌡️ Temperature and humidity sensors
-- 💧 Water tank level monitoring
-- 🔌 Relay control (3 channels)
-- 📱 Responsive design
-- 🚀 Fast and lightweight
+- 📊 Monitoring real-time penggunaan listrik dan air
+- 💰 Perhitungan biaya otomatis
+- 🔌 Kontrol daya per kamar
+- 💧 Pemantauan penggunaan air
+- 🌓 Mode gelap/terang
+- 📱 Tampilan responsif
+- 📊 Grafik penggunaan harian/bulanan
+- 🔔 Notifikasi status pembayaran
 
-## Prerequisites
+## Persyaratan Sistem
 
-- Node.js (v14 or later)
-- npm or yarn
-- MQTT broker (e.g., Mosquitto, HiveMQ, etc.)
+- Node.js (v16 atau lebih baru)
+- npm atau yarn
+- MQTT broker (contoh: Mosquitto, EMQX, dll.)
+- Akses ke perangkat IoT (modul listrik dan air)
 
 ## Installation
 
-1. Clone the repository:
+1. Clone repository:
    ```bash
    git clone https://github.com/duwiarsana/Dashboard-Mqtt-Modul-Belajar.git
    cd Dashboard-Mqtt-Modul-Belajar
    ```
 
-2. Install dependencies:
+2. Install dependensi:
    ```bash
    npm install
-   # or
+   # atau
    yarn install
    ```
 
-## Configuration
+## Konfigurasi
 
-1. Update the MQTT broker settings in `src/config/mqtt.ts`:
+1. Update konfigurasi MQTT di `src/config/mqtt.ts`:
    ```typescript
-   const MQTT_CONFIG = {
-     url: 'ws://your-mqtt-broker:8080/mqtt',
+   export const mqttConfig = {
+     brokerUrl: 'ws://your-mqtt-broker:8084',
      options: {
-       username: 'your-username',
-       password: 'your-password',
+       clientId: 'modul-belajar-dashboard',
+       clean: true,
+       protocol: 'ws' as const,
+       wsOptions: {
+         rejectUnauthorized: false
+       }
      },
-     topics: {
-       // Update topics as needed
-     },
+     // Update topik sesuai kebutuhan
    };
 
-## Nginx Reverse Proxy Example
+## Deployment dengan Nginx
 
-If you want to access the dashboard from the internet, you can use Nginx as a reverse proxy. Example for port 8080:
+Contoh konfigurasi Nginx untuk reverse proxy (port 80):
 
 ```nginx
 server {
-    listen 8080;
-    server_name iot.pkc.pub 41.216.191.200;
+    listen 80;
+    server_name your-domain.com;
 
     location / {
-        proxy_pass http://localhost:30080;
+        proxy_pass http://localhost:3000;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection 'upgrade';
@@ -74,89 +77,97 @@ server {
 }
 ```
 
-**Note:**
-- If your ISP blocks port 80, use port 8080 and access the dashboard via `http://iot.pkc.pub:8080` or `http://41.216.191.200:8080`.
-- DNS cannot point to a specific port. Always specify the port in the URL if not using port 80.
+**Catatan:**
 
-   ```
+- Pastikan port yang digunakan tidak diblok oleh firewall
+- Gunakan HTTPS untuk koneksi yang lebih aman
+- Sesuaikan `server_name` dengan domain atau IP server Anda
 
-2. Customize the dashboard by modifying the components in the `src/components` directory.
+## Menyesuaikan Tampilan
 
-## Running the App
+Anda dapat menyesuaikan tampilan dengan memodifikasi komponen di direktori `src/components`
+
+## Menjalankan Aplikasi
 
 ```bash
-# Development mode
+# Mode pengembangan
 npm run dev
-# or
+# atau
 yarn dev
 
-# Build for production
+# Build untuk produksi
 npm run build
-# or
+# atau
 yarn build
 
-# Preview production build
+# Preview hasil build
 npm run preview
-# or
+# atau
 yarn preview
 ```
 
-## Environment Variables
+## Variabel Lingkungan
 
-Create a `.env` file in the root directory to set environment variables:
+Buat file `.env` di direktori root untuk mengatur variabel lingkungan:
 
 ```env
-VITE_MQTT_URL=ws://your-mqtt-broker:8080/mqtt
+VITE_MQTT_URL=ws://your-mqtt-broker:8084
 VITE_MQTT_USERNAME=your-username
 VITE_MQTT_PASSWORD=your-password
+VITE_APP_TITLE="Sistem Kos-Kosan Pintar UD Padma"
 ```
 
-## Project Structure
+## Struktur Proyek
 
 ```
 src/
-├── components/         # Reusable UI components
-├── contexts/           # React contexts
-├── App.tsx            # Main application component
-├── main.tsx           # Application entry point
-└── index.css          # Global styles
+├── components/         # Komponen UI yang dapat digunakan ulang
+│   ├── KosanBlock.tsx   # Komponen blok kosan
+│   └── RoomCard.tsx     # Kartu untuk setiap kamar
+├── config/             # File konfigurasi
+│   └── mqtt.ts        # Konfigurasi MQTT
+├── App.tsx            # Komponen utama aplikasi
+├── main.tsx           # Entry point aplikasi
+└── index.css          # Gaya global
 ```
 
-## Technologies & UI Plugins Used
+## Teknologi yang Digunakan
 
-- **React 18** — UI library utama untuk membangun dashboard.
-- **TypeScript** — Supaya code lebih aman dan maintainable.
-- **Tailwind CSS** — Framework utility-first CSS untuk tampilan responsif, modern, dan mudah dikustomisasi.
-- **@tailwindcss/forms & typography** — Plugin Tailwind untuk mempercantik tampilan form dan teks.
-- **clsx & class-variance-authority** — Untuk mengelola class CSS dinamis dengan mudah.
-- **Framer Motion** — Animasi UI yang halus dan interaktif.
-- **@headlessui/react** — Komponen UI siap pakai yang mudah dikustomisasi dan tetap accessible.
-- **Hero Icons** — Icon SVG gratis yang modern, digunakan untuk berbagai status, tombol, dsb.
-- **Lucide React** — Icon SVG modern lain untuk variasi visual.
-- **@radix-ui/react-progress & slot** — Komponen progres bar dan utilitas slot untuk UI modular.
-- **Recharts** — Grafik interaktif dan responsif.
-- **MQTT.js** — Library koneksi MQTT dari browser.
-- **Vite** — Build tool modern untuk pengembangan super cepat.
+### Frontend
 
-### Font & Styling
-- **Inter** — Google Fonts untuk tampilan teks bersih dan profesional.
-- **Dark mode** — Didukung penuh, otomatis mengikuti preferensi sistem.
+- **React 18** — Library UI untuk membangun antarmuka pengguna yang interaktif
+- **TypeScript** — Memastikan kode lebih aman dan mudah dikelola
+- **Tailwind CSS** — Framework CSS utility-first untuk desain responsif
+- **Vite** — Build tool yang cepat dan ringan
+- **MQTT.js** — Library untuk koneksi MQTT dari browser
 
-### Kenapa UI-nya Responsif & Ikonik?
-- **Tailwind CSS** + plugin forms/typography membuat layout responsif, mobile-first, dan konsisten di berbagai device.
-- **Hero Icons & Lucide** menyediakan icon SVG yang tajam, ringan, dan mudah diganti warnanya.
-- **Framer Motion** menambah animasi transisi yang smooth.
-- **@headlessui/react** membantu membuat komponen seperti switch, modal, dsb yang tetap accessible.
+### UI/UX
 
-Lihat daftar dependensi lengkap di `package.json` untuk library lain yang digunakan.
+- **Hero Icons & Lucide** — Koleksi ikon SVG modern
+- **Framer Motion** — Untuk animasi yang halus
+- **Headless UI** — Komponen UI yang dapat diakses
+- **Recharts** — Library grafik interaktif
 
-## License
+### Fitur Khusus
 
-MIT
+- **Dark Mode** — Tema gelap/terang yang otomatis
+- **Responsif** — Tampilan optimal di semua perangkat
+- **Real-time Updates** — Pembaruan data secara langsung
+- **User-friendly** — Antarmuka yang intuitif dan mudah digunakan
 
-## Acknowledgments
+## Lisensi
 
-- [Tailwind CSS](https://tailwindcss.com/)
-- [Hero Icons](https://heroicons.com/)
-- [MQTT.js](https://github.com/mqttjs/MQTT.js/)
-- [Vite](https://vitejs.dev/)
+Dibawah lisensi MIT
+
+## Kontribusi
+
+Kontribusi terbuka untuk pengembangan lebih lanjut. Silakan buat issue atau pull request.
+
+## Dikembangkan Oleh
+
+- [Nama Pengembang]
+- [Kontak Email]
+
+## Dukungan
+
+Untuk dukungan teknis, silakan buat issue di repository ini.
