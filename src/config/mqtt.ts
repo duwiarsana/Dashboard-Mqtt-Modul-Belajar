@@ -20,21 +20,135 @@ export const mqttConfig = {
     onOffline: () => console.log('[MQTT] Client offline'),
     onEnd: () => console.log('[MQTT] Connection ended')
   } as IClientOptions,
-  topics: {
-    // Topik untuk ParkingStatus
-    parking: 'sensor/parking',
-    
-    // Topik untuk EnvironmentSensors
-    temperature: 'sensor/suhu',
-    humidity: 'sensor/kelembaban',
-    light: 'sensor/cahaya',
-    
-    // Topik untuk WaterTank
-    waterLevel: 'sensor/waterlevel',
-    
-    // Topik untuk RelayControl
-    relay1: 'relay/1',
-    relay2: 'relay/2',
-    relayControl: 'relay/control'
+  // Topik untuk setiap kamar (1-8)
+  rooms: {
+    1: {
+      name: 'Kamar 01',
+      topics: {
+        voltage: 'kost/kamar01/voltage',
+        current: 'kost/kamar01/current',
+        power: 'kost/kamar01/power',
+        powerFactor: 'kost/kamar01/power_factor',
+        energy: 'kost/kamar01/energy',
+        cost: 'kost/kamar01/cost',
+        temperature: 'kost/kamar01/temperature',
+        humidity: 'kost/kamar01/humidity',
+        water: 'kost/kamar01/water',
+        relay: 'kost/kamar01/relay/control',
+        paymentStatus: 'kost/kamar01/payment/status'
+      }
+    },
+    2: {
+      name: 'Kamar 02',
+      topics: {
+        voltage: 'kost/kamar02/voltage',
+        current: 'kost/kamar02/current',
+        power: 'kost/kamar02/power',
+        powerFactor: 'kost/kamar02/power_factor',
+        energy: 'kost/kamar02/energy',
+        cost: 'kost/kamar02/cost',
+        temperature: 'kost/kamar02/temperature',
+        humidity: 'kost/kamar02/humidity',
+        water: 'kost/kamar02/water',
+        relay: 'kost/kamar02/relay/control',
+        paymentStatus: 'kost/kamar02/payment/status'
+      }
+    },
+    3: {
+      name: 'Kamar 03',
+      topics: {
+        voltage: 'kost/kamar03/voltage',
+        current: 'kost/kamar03/current',
+        power: 'kost/kamar03/power',
+        powerFactor: 'kost/kamar03/power_factor',
+        energy: 'kost/kamar03/energy',
+        cost: 'kost/kamar03/cost',
+        temperature: 'kost/kamar03/temperature',
+        humidity: 'kost/kamar03/humidity',
+        water: 'kost/kamar03/water',
+        relay: 'kost/kamar03/relay/control',
+        paymentStatus: 'kost/kamar03/payment/status'
+      }
+    },
+    4: {
+      name: 'Kamar 04',
+      topics: {
+        voltage: 'kost/kamar04/voltage',
+        current: 'kost/kamar04/current',
+        power: 'kost/kamar04/power',
+        powerFactor: 'kost/kamar04/power_factor',
+        energy: 'kost/kamar04/energy',
+        cost: 'kost/kamar04/cost',
+        temperature: 'kost/kamar04/temperature',
+        humidity: 'kost/kamar04/humidity',
+        water: 'kost/kamar04/water',
+        relay: 'kost/kamar04/relay/control',
+        paymentStatus: 'kost/kamar04/payment/status'
+      }
+    },
+    5: {
+      name: 'Kamar 05',
+      topics: {
+        voltage: 'kost/kamar05/voltage',
+        current: 'kost/kamar05/current',
+        power: 'kost/kamar05/power',
+        powerFactor: 'kost/kamar05/power_factor',
+        energy: 'kost/kamar05/energy',
+        cost: 'kost/kamar05/cost',
+        temperature: 'kost/kamar05/temperature',
+        humidity: 'kost/kamar05/humidity',
+        water: 'kost/kamar05/water',
+        relay: 'kost/kamar05/relay/control',
+        paymentStatus: 'kost/kamar05/payment/status'
+      }
+    },
+    6: {
+      name: 'Kamar 06',
+      topics: {
+        voltage: 'kost/kamar06/voltage',
+        current: 'kost/kamar06/current',
+        power: 'kost/kamar06/power',
+        powerFactor: 'kost/kamar06/power_factor',
+        energy: 'kost/kamar06/energy',
+        cost: 'kost/kamar06/cost',
+        temperature: 'kost/kamar06/temperature',
+        humidity: 'kost/kamar06/humidity',
+        water: 'kost/kamar06/water',
+        relay: 'kost/kamar06/relay/control',
+        paymentStatus: 'kost/kamar06/payment/status'
+      }
+    },
+    7: {
+      name: 'Kamar 07',
+      topics: {
+        voltage: 'kost/kamar07/voltage',
+        current: 'kost/kamar07/current',
+        power: 'kost/kamar07/power',
+        powerFactor: 'kost/kamar07/power_factor',
+        energy: 'kost/kamar07/energy',
+        cost: 'kost/kamar07/cost',
+        temperature: 'kost/kamar07/temperature',
+        humidity: 'kost/kamar07/humidity',
+        water: 'kost/kamar07/water',
+        relay: 'kost/kamar07/relay/control',
+        paymentStatus: 'kost/kamar07/payment/status'
+      }
+    },
+    8: {
+      name: 'Kamar 08',
+      topics: {
+        voltage: 'kost/kamar08/voltage',
+        current: 'kost/kamar08/current',
+        power: 'kost/kamar08/power',
+        powerFactor: 'kost/kamar08/power_factor',
+        energy: 'kost/kamar08/energy',
+        cost: 'kost/kamar08/cost',
+        temperature: 'kost/kamar08/temperature',
+        humidity: 'kost/kamar08/humidity',
+        water: 'kost/kamar08/water',
+        relay: 'kost/kamar08/relay/control',
+        paymentStatus: 'kost/kamar08/payment/status'
+      }
+    }
   },
 };
