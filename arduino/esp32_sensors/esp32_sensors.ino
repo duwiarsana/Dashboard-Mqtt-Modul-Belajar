@@ -1,6 +1,13 @@
 #include <WiFi.h>
 #include <PubSubClient.h>
-#include <DHT.h>
+#include <PZEM004Tv30.h>
+
+// PZEM Serial Pins
+#define RXD2 17  // Connect to TX of PZEM
+#define TXD2 16  // Connect to RX of PZEM
+
+// Relay Pin
+#define RELAY_PIN 25
 
 // WiFi credentials
 const char* ssid = "STARLINK";
@@ -12,84 +19,32 @@ const int mqtt_port = 1883;
 const char* mqtt_user = "";
 const char* mqtt_password = "";
 
-// MQTT Topics - Match with web app
-const char* parking_topic = "sensor/parking";
-const char* temperature_topic = "sensor/suhu";
-const char* humidity_topic = "sensor/kelembaban";
-const char* water_level_topic = "sensor/waterlevel";
-const char* light_topic = "sensor/cahaya";
-const char* relay_topic = "relay/1";
+// MQTT Topics
+const char* voltage_topic = "kost/kamar01/voltage";
+const char* current_topic = "kost/kamar01/current";
+const char* power_topic = "kost/kamar01/power";
+const char* energy_topic = "kost/kamar01/energy";
+const char* pf_topic = "kost/kamar01/power_factor";
+const char* relay_topic = "kost/kamar01/relay/control";
 
-// Sensor calibration
-const int LIGHT_MIN = 0;    // Nilai minimum dari sensor cahaya (gelap)
-const int LIGHT_MAX = 4095;   // Nilai maksimum dari sensor cahaya (terang)
-const int WATER_EMPTY = 0;    // Nilai ADC saat tangki kosong (0-4095)
-const int WATER_FULL = 4095;   // Nilai ADC saat tangki penuh (0-4095)
-const int SMOOTHING_READINGS = 5; // Jumlah pembacaan untuk smoothing
+// PZEM Object
+PZEM004Tv30 pzem(Serial2, RXD2, TXD2);
 
-// Pin Definitions
-#define TRIG_PIN 16
-#define ECHO_PIN 17
-#define RELAY_PIN 25
-#define DHT_PIN 4
-#define LIGHT_SENSOR_PIN 35
-#define POTENTIOMETER_PIN 34
-
-// DHT Sensor Setup
-#define DHT_TYPE DHT11
-DHT dht(DHT_PIN, DHT_TYPE);
-
-// Variables
-unsigned long lastMsg = 0;
-const long interval = 2000; // Update interval in milliseconds
-bool relayState = false; // Menyimpan state relay
-
-// Variabel untuk menyimpan nilai sebelumnya
-float prevDistance = -1;
-int prevWaterLevel = -1;
-float prevTemperature = -100;
-float prevHumidity = -1;
-int prevLightPercent = -1;
-
+// WiFi and MQTT clients
 WiFiClient espClient;
 PubSubClient client(espClient);
 
-// Callback function when MQTT message is received
-void callback(char* topic, byte* payload, unsigned int length) {
-  Serial.print("Message received on [");
-  Serial.print(topic);
-  Serial.print("]: ");
-  
-  // Convert payload to string
-  String message = "";
-  for (int i = 0; i < length; i++) {
-    message += (char)payload[i];
-  }
-  Serial.println(message);
-
-  // Only process relay commands if the topic matches
-  if (String(topic) == relay_topic) {
-    if (message == "ON") {
-      digitalWrite(RELAY_PIN, HIGH);
-      relayState = true;
-      Serial.println("Relay turned ON by command");
-    } else if (message == "OFF") {
-      digitalWrite(RELAY_PIN, LOW);
-      relayState = false;
-      Serial.println("Relay turned OFF by command");
-    }
-  }
-}
+unsigned long lastMsg = 0;
+#define MSG_BUFFER_SIZE 50
+char msg[MSG_BUFFER_SIZE];
 
 void setup_wifi() {
   delay(10);
-  Serial.begin(115200);
   Serial.println();
   Serial.print("Connecting to ");
   Serial.println(ssid);
 
   WiFi.begin(ssid, password);
-
   while (WiFi.status() != WL_CONNECTED) {
     delay(500);
     Serial.print(".");
@@ -97,25 +52,37 @@ void setup_wifi() {
 
   Serial.println("");
   Serial.println("WiFi connected");
-  Serial.println("IP address: ");
+  Serial.print("IP address: ");
   Serial.println(WiFi.localIP());
+}
+
+void callback(char* topic, byte* payload, unsigned int length) {
+  String message = "";
+  for (int i = 0; i < length; i++) {
+    message += (char)payload[i];
+  }
+  
+  // Check if the message is for relay control
+  if (String(topic) == relay_topic) {
+    if (message == "ON") {
+      digitalWrite(RELAY_PIN, HIGH);
+      Serial.println("Relay ON");
+    } else if (message == "OFF") {
+      digitalWrite(RELAY_PIN, LOW);
+      Serial.println("Relay OFF");
+    }
+  }
 }
 
 void reconnect() {
   while (!client.connected()) {
-    Serial.print("Attempting MQTT connection... ");
+    Serial.print("Attempting MQTT connection...");
     String clientId = "ESP32Client-";
     clientId += String(random(0xffff), HEX);
     
-    if (client.connect(clientId.c_str())) {  // Removed user/pass if not needed
+    if (client.connect(clientId.c_str(), mqtt_user, mqtt_password)) {
       Serial.println("connected");
-      // Only subscribe to the relay topic, no other subscriptions
-      if (client.subscribe(relay_topic)) {
-        Serial.print("Subscribed to: ");
-        Serial.println(relay_topic);
-      } else {
-        Serial.println("Failed to subscribe to relay topic");
-      }
+      client.subscribe(relay_topic);
     } else {
       Serial.print("failed, rc=");
       Serial.print(client.state());
@@ -126,85 +93,17 @@ void reconnect() {
 }
 
 void setup() {
-  // Initialize serial communication
   Serial.begin(115200);
-  
-  // Initialize pins
-  pinMode(TRIG_PIN, OUTPUT);
-  pinMode(ECHO_PIN, INPUT);
-  pinMode(RELAY_PIN, OUTPUT);
-  digitalWrite(RELAY_PIN, LOW);  // Ensure relay starts in OFF state
-  pinMode(LIGHT_SENSOR_PIN, INPUT);
-  pinMode(POTENTIOMETER_PIN, INPUT);
-  
-  Serial.println("Initialized all pins");
-  
-  // Initialize DHT sensor
-  dht.begin();
-  
-  // Initialize WiFi and MQTT
   setup_wifi();
   client.setServer(mqtt_server, mqtt_port);
-  client.setCallback(callback);  // Set callback function
-}
-
-float readDistance() {
-  // Clear the TRIG_PIN
-  digitalWrite(TRIG_PIN, LOW);
-  delayMicroseconds(2);
+  client.setCallback(callback);
   
-  // Sets the TRIG_PIN on HIGH state for 10 micro seconds
-  digitalWrite(TRIG_PIN, HIGH);
-  delayMicroseconds(10);
-  digitalWrite(TRIG_PIN, LOW);
+  // Setup relay pin
+  pinMode(RELAY_PIN, OUTPUT);
+  digitalWrite(RELAY_PIN, LOW);  // Start with relay off
   
-  // Reads the ECHO_PIN, returns the sound wave travel time in microseconds
-  long duration = pulseIn(ECHO_PIN, HIGH);
-  
-  // Calculate the distance in centimeters
-  float distance = duration * 0.034 / 2;
-  
-  return distance;
-}
-
-// Array untuk smoothing
-int waterLevelReadings[SMOOTHING_READINGS];
-int readIndex = 0;
-int total = 0;
-
-int readWaterLevel() {
-  // Baca nilai analog
-  int sensorValue = analogRead(POTENTIOMETER_PIN);
-  
-  // Update total untuk moving average
-  total = total - waterLevelReadings[readIndex];
-  waterLevelReadings[readIndex] = sensorValue;
-  total = total + waterLevelReadings[readIndex];
-  readIndex = (readIndex + 1) % SMOOTHING_READINGS;
-  
-  // Hitung rata-rata
-  int averageReading = total / SMOOTHING_READINGS;
-  
-  // Map ke persentase (dibalik karena semakin tinggi sensor = semakin rendah air)
-  int level = map(averageReading, WATER_EMPTY, WATER_FULL, 100, 0);
-  
-  // Beri batas 0-100%
-  level = constrain(level, 0, 100);
-  
-  // Debug output
-  static unsigned long lastPrint = 0;
-  if (millis() - lastPrint > 1000) { // Cetak setiap 1 detik saja
-    lastPrint = millis();
-    Serial.print("Water Level - Raw: ");
-    Serial.print(sensorValue);
-    Serial.print(" | Avg: ");
-    Serial.print(averageReading);
-    Serial.print(" | Level: ");
-    Serial.print(level);
-    Serial.println("%");
-  }
-  
-  return level;
+  // Initialize Serial2 for PZEM
+  Serial2.begin(9600, SERIAL_8N1, RXD2, TXD2);
 }
 
 void loop() {
@@ -213,73 +112,52 @@ void loop() {
   }
   client.loop();
 
-  unsigned long now = millis();
-  if (now - lastMsg > interval) {
-    lastMsg = now;
+  float voltage = pzem.voltage();
+  float current = pzem.current();
+  float power = pzem.power();
+  float energy = pzem.energy();
+  float pf = pzem.pf();
+
+  if (isnan(voltage)) {
+    Serial.println("Error reading voltage");
+  } else if (isnan(current)) {
+    Serial.println("Error reading current");
+  } else if (isnan(power)) {
+    Serial.println("Error reading power");
+  } else if (isnan(energy)) {
+    Serial.println("Error reading energy");
+  } else if (isnan(pf)) {
+    Serial.println("Error reading power factor");
+  }
+
+  if (millis() - lastMsg > 2000) {
+    lastMsg = millis();
+   
+    // Publish voltage
+    snprintf(msg, MSG_BUFFER_SIZE, "%.1f", voltage);
+    client.publish(voltage_topic, msg);
     
-    // Read sensors
-    float distance = readDistance();
-    int waterLevel = readWaterLevel();
-    float temperature = dht.readTemperature();
-    float humidity = dht.readHumidity();
-    int lightValue = analogRead(LIGHT_SENSOR_PIN);
+    // Publish current
+    snprintf(msg, MSG_BUFFER_SIZE, "%.2f", current);
+    client.publish(current_topic, msg);
     
-    // Check if distance is less than 25cm
-    bool objectDetected = (distance < 20 && distance > 0);
+    // Publish power
+    snprintf(msg, MSG_BUFFER_SIZE, "%.1f", power);
+    client.publish(power_topic, msg);
     
-    // Map light sensor value to 0-100% (0% = gelap, 100% = terang)
-    int lightPercent = map(lightValue, LIGHT_MIN, LIGHT_MAX, 0, 100);
-    lightPercent = constrain(lightPercent, 0, 100);  // Pastikan nilai antara 0-100
+    // Publish energy
+    snprintf(msg, MSG_BUFFER_SIZE, "%.3f", energy);
+    client.publish(energy_topic, msg);
     
-    // Hanya publish jika ada perubahan dari nilai sebelumnya
-    if (objectDetected != (prevDistance < 20 && prevDistance > 0)) {
-      client.publish(parking_topic, objectDetected ? "true" : "false");
-    }
+    // Publish power factor
+    snprintf(msg, MSG_BUFFER_SIZE, "%.1f", pf);
+    client.publish(pf_topic, msg);
     
-    if (waterLevel != prevWaterLevel) {
-      client.publish(water_level_topic, String(waterLevel).c_str());
-      prevWaterLevel = waterLevel;
-    }
-    
-    if (abs(temperature - prevTemperature) >= 0.1) {  // Hanya jika perubahan >= 0.1 derajat
-      client.publish(temperature_topic, String(temperature, 1).c_str());
-      prevTemperature = temperature;
-    }
-    
-    if (abs(humidity - prevHumidity) >= 0.5) {  // Hanya jika perubahan >= 0.5%
-      client.publish(humidity_topic, String(humidity, 1).c_str());
-      prevHumidity = humidity;
-    }
-    
-    if (lightPercent != prevLightPercent) {
-      client.publish(light_topic, String(lightPercent).c_str());
-      prevLightPercent = lightPercent;
-    }
-    
-    // Simpan nilai distance terakhir
-    prevDistance = distance;
-    
-    // Print values to Serial for debugging
-    Serial.print("Distance: ");
-    Serial.print(distance);
-    Serial.print(" cm, Object Detected: ");
-    Serial.println(objectDetected ? "Yes" : "No");
-    
-    Serial.print("Water Level: ");
-    Serial.print(waterLevel);
-    Serial.println(" %");
-    
-    Serial.print("Temperature: ");
-    Serial.print(temperature);
-    Serial.print(" °C, Humidity: ");
-    Serial.print(humidity);
-    Serial.println(" %");
-    
-    Serial.print("Light Sensor: ");
-    Serial.print(lightValue);
-    Serial.print(" (");
-    Serial.print(lightPercent);
-    Serial.println("%)");
-    Serial.println("----------------------");
+    // Print to Serial for debugging
+    Serial.print("Voltage: "); Serial.print(voltage); Serial.println("V");
+    Serial.print("Current: "); Serial.print(current); Serial.println("A");
+    Serial.print("Power: "); Serial.print(power); Serial.println("W");
+    Serial.print("Energy: "); Serial.print(energy, 3); Serial.println("kWh");
+    Serial.print("PF: "); Serial.println(pf);
   }
 }

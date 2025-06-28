@@ -25,12 +25,12 @@ export const mqttConfig = {
     1: {
       name: 'Kamar 01',
       topics: {
-        voltage: 'kost/kamar01/voltage',
-        current: 'kost/kamar01/current',
-        power: 'kost/kamar01/power',
-        powerFactor: 'kost/kamar01/power_factor',
-        energy: 'kost/kamar01/energy',
-        cost: 'kost/kamar01/cost',
+        voltage: 'pzem/voltage',
+        current: 'pzem/current',
+        power: 'pzem/power',
+        powerFactor: 'pzem/pf',
+        energy: 'pzem/energy',
+        cost: 'pzem/cost',
         temperature: 'kost/kamar01/temperature',
         humidity: 'kost/kamar01/humidity',
         water: 'kost/kamar01/water',

@@ -1,15 +1,28 @@
-import React, { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react';
-import mqtt, { MqttClient, IClientOptions } from 'mqtt';
+import React, { createContext, useContext, useState, useCallback, useMemo } from 'react';
+import mqtt, { MqttClient, IClientOptions, ISubscriptionGrant } from 'mqtt';
+
+type QoS = 0 | 1 | 2;
+import { Device } from '@/types/device';
+
+interface MqttMessage {
+  topic: string;
+  payload: string;
+  timestamp: number;
+}
 
 interface MqttContextType {
   client: MqttClient | null;
   isConnected: boolean;
-  connect: () => void;
+  connect: (device?: Device) => void;
   disconnect: () => void;
-  subscribe: (topic: string) => void;
-  unsubscribe: (topic: string) => void;
+  subscribe: (topic: string | string[], callback?: (err: Error | null, granted: ISubscriptionGrant) => void) => void;
+  unsubscribe: (topic: string | string[], callback?: (error?: Error) => void) => void;
   publish: (topic: string, message: string, options?: mqtt.IClientPublishOptions) => void;
-  messages: Record<string, string>;
+  messages: Record<string, MqttMessage>;
+  activeDevices: Device[];
+  setActiveDevices: React.Dispatch<React.SetStateAction<Device[]>>;
+  error: string | null;
+  clearError: () => void;
 }
 
 const MqttContext = createContext<MqttContextType | undefined>(undefined);
@@ -17,14 +30,26 @@ const MqttContext = createContext<MqttContextType | undefined>(undefined);
 export const MqttProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [client, setClient] = useState<MqttClient | null>(null);
   const [isConnected, setIsConnected] = useState(false);
-  const [messages, setMessages] = useState<Record<string, string>>({});
+  const [messages, setMessages] = useState<Record<string, MqttMessage>>({});
+  const [activeDevices, setActiveDevices] = useState<Device[]>([]);
+  const [error, setError] = useState<string | null>(null);
 
-  const connect = useCallback(() => {
+  const connect = useCallback((device?: Device) => {
     try {
-      console.log('[MQTT] Mencoba terhubung ke broker...');
+      if (client && client.connected) {
+        if (device) {
+          // Connect to specific device's MQTT server
+          connectToDevice(device);
+        }
+        return client;
+      }
+
+      console.log('[MQTT] Attempting to connect to broker...');
+      
+      const brokerUrl = device ? `ws://${device.mqttServer}:${device.port}` : 'ws://202.74.74.42:8084';
       
       const options: IClientOptions = {
-        clientId: 'modul-belajar-dashboard-' + Math.random().toString(16).substr(2, 8),
+        clientId: `mqtt-${device?.id || 'dashboard'}-${Math.random().toString(16).substr(2, 8)}`,
         clean: true,
         connectTimeout: 8000,
         keepalive: 60,
@@ -36,41 +61,51 @@ export const MqttProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       };
 
-      const mqttClient = mqtt.connect('ws://202.74.74.42:8084', options);
+      const mqttClient = mqtt.connect(brokerUrl, options);
 
       // Event handlers
       mqttClient.on('connect', () => {
-        console.log('[MQTT] Berhasil terhubung ke broker');
+        console.log(`[MQTT] Connected to broker at ${brokerUrl}`);
         setIsConnected(true);
+        setError(null);
         
-        const topics = [
-          'sensor/parking',
-          'sensor/suhu',
-          'sensor/kelembaban',
-          'sensor/waterlevel',
-          'relay/1',
-          'relay/2',
-          'relay/control'
-        ];
-        
-        topics.forEach(topic => {
-          mqttClient.subscribe(topic, { qos: 0 }, (err) => {
+        // If this is a device connection, update its status
+        if (device) {
+          setActiveDevices(prev => {
+            const exists = prev.some(d => d.id === device.id);
+            return exists ? prev : [...prev, device];
+          });
+        } else {
+          // Default subscriptions for dashboard
+          const topics = [
+            'sensor/parking',
+            'sensor/suhu',
+            'sensor/kelembaban',
+            'sensor/waterlevel',
+            'relay/1',
+            'relay/2',
+            'relay/control'
+          ];
+          
+          mqttClient.subscribe(topics, { qos: 0 }, (err, granted) => {
             if (err) {
-              console.error(`[MQTT] Gagal subscribe ke ${topic}:`, err);
+              console.error('[MQTT] Failed to subscribe to topics:', err);
+              setError(`Failed to subscribe to topics: ${err.message}`);
             } else {
-              console.log(`[MQTT] Berhasil subscribe ke ${topic}`);
+              console.log('[MQTT] Subscribed to topics:', granted);
             }
           });
-        });
+        }
       });
 
       mqttClient.on('error', (err) => {
-        console.error('[MQTT] Error:', err);
+        console.error('[MQTT] Connection error:', err);
+        setError(`Connection error: ${err.message}`);
         setIsConnected(false);
       });
 
       mqttClient.on('close', () => {
-        console.log('[MQTT] Koneksi ditutup');
+        console.log('[MQTT] Connection closed');
         setIsConnected(false);
       });
 
@@ -81,21 +116,59 @@ export const MqttProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       mqttClient.on('message', (topic: string, message: Buffer) => {
         const payload = message.toString();
-        console.log(`[MQTT] Pesan diterima di ${topic}: ${payload}`);
+        const timestamp = Date.now();
+        console.log(`[MQTT] Message received on ${topic}: ${payload}`);
+        
         setMessages(prev => ({
           ...prev,
-          [topic]: payload
+          [topic]: {
+            topic,
+            payload,
+            timestamp
+          }
         }));
       });
 
       setClient(mqttClient);
       return mqttClient;
     } catch (error) {
-      console.error('Gagal terhubung ke broker MQTT:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      console.error('Failed to connect to MQTT broker:', error);
+      setError(`Connection failed: ${errorMessage}`);
       setIsConnected(false);
       return null;
     }
   }, []);
+
+  const connectToDevice = useCallback((device: Device) => {
+    if (!device || !device.isActive) return;
+    
+    // Unsubscribe from all topics first
+    if (client) {
+      client.unsubscribe('#');
+      
+      // If already connected to this device's server, just subscribe to its topics
+      if (client.connected) {
+        client.subscribe(device.topics, { qos: 0 }, (err, granted) => {
+          if (err) {
+            console.error(`[MQTT] Failed to subscribe to device ${device.id} topics:`, err);
+            setError(`Failed to subscribe to device ${device.name} topics`);
+          } else {
+            console.log(`[MQTT] Subscribed to device ${device.id} topics:`, granted);
+            setActiveDevices(prev => {
+              const exists = prev.some(d => d.id === device.id);
+              return exists ? prev : [...prev, device];
+            });
+          }
+        });
+      } else {
+        // Connect to the device's MQTT server
+        connect(device);
+      }
+    }
+  }, [client, connect]);
+
+
 
   const disconnect = useCallback(() => {
     if (client) {
@@ -108,61 +181,88 @@ export const MqttProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [client]);
 
-  const subscribe = useCallback((topic: string) => {
-    if (!client || !isConnected) {
-      console.warn('[MQTT] Tidak dapat subscribe: klien tidak terhubung');
-      return;
+  const subscribe = useCallback((topic: string | string[], callback?: (err: Error | null, granted: ISubscriptionGrant) => void) => {
+    if (client && isConnected) {
+      client.subscribe(topic, { qos: 0 }, (err, granted) => {
+        if (err) {
+          console.error(`[MQTT] Failed to subscribe to ${topic}:`, err);
+          if (callback) {
+            const defaultGrant: ISubscriptionGrant = { 
+              topic: '', 
+              qos: 0 as QoS,
+              // @ts-ignore - Add missing properties to match ISubscriptionGrant
+              messageId: 0,
+              // @ts-ignore
+              _packet: { cmd: 'suback' }
+            };
+            callback(err, defaultGrant);
+          }
+        } else {
+          console.log(`[MQTT] Subscribed to ${topic}`, granted);
+          if (callback) {
+            const grant = Array.isArray(granted) && granted.length > 0 ? 
+              granted[0] : 
+              { 
+                topic: '', 
+                qos: 0 as QoS,
+                // @ts-ignore - Add missing properties to match ISubscriptionGrant
+                messageId: 0,
+                // @ts-ignore
+                _packet: { cmd: 'suback' }
+              };
+            callback(null, grant);
+          }
+        }
+      });
+    } else if (callback) {
+      const defaultGrant: ISubscriptionGrant = { 
+        topic: '', 
+        qos: 0 as QoS,
+        // @ts-ignore - Add missing properties to match ISubscriptionGrant
+        messageId: 0,
+        // @ts-ignore
+        _packet: { cmd: 'suback' }
+      };
+      callback(new Error('MQTT client not connected'), defaultGrant);
     }
-    
-    client.subscribe(topic, { qos: 0 }, (err) => {
-      if (err) {
-        console.error(`[MQTT] Gagal subscribe ke ${topic}:`, err);
-      } else {
-        console.log(`[MQTT] Berhasil subscribe ke ${topic}`);
-      }
-    });
   }, [client, isConnected]);
 
-  const unsubscribe = useCallback((topic: string) => {
-    if (!client || !isConnected) {
-      console.warn('[MQTT] Tidak dapat unsubscribe: klien tidak terhubung');
-      return;
+  const unsubscribe = useCallback((topic: string | string[], callback?: (error?: Error) => void) => {
+    if (client && isConnected) {
+      client.unsubscribe(topic, (err) => {
+        if (err) {
+          console.error(`[MQTT] Failed to unsubscribe from ${topic}:`, err);
+          if (callback) callback(err);
+        } else {
+          console.log(`[MQTT] Unsubscribed from ${topic}`);
+          if (callback) callback();
+        }
+      });
+    } else if (callback) {
+      callback(new Error('MQTT client not connected'));
     }
-    
-    client.unsubscribe(topic, (err) => {
-      if (err) {
-        console.error(`[MQTT] Gagal unsubscribe dari ${topic}:`, err);
-      } else {
-        console.log(`[MQTT] Berhasil unsubscribe dari ${topic}`);
-      }
-    });
   }, [client, isConnected]);
 
   const publish = useCallback((topic: string, message: string, options?: mqtt.IClientPublishOptions) => {
     if (client && isConnected) {
-      client.publish(topic, message, options || {});
-      console.log(`[MQTT] Berhasil publish ke ${topic}: ${message}`);
-      return true;
-    } else {
-      console.warn('[MQTT] Cannot publish - not connected');
-      return false;
+      return new Promise<void>((resolve, reject) => {
+        client.publish(topic, message, { qos: 0, ...options }, (err) => {
+          if (err) {
+            console.error(`[MQTT] Failed to publish to ${topic}:`, err);
+            reject(err);
+          } else {
+            console.log(`[MQTT] Published to ${topic}: ${message}`);
+            resolve();
+          }
+        });
+      });
     }
+    return Promise.reject(new Error('MQTT client not connected'));
   }, [client, isConnected]);
 
-  // Handle cleanup on unmount
-  useEffect(() => {
-    return () => {
-      if (client) {
-        console.log('[MQTT] Membersihkan koneksi...');
-        client.end(true, undefined, () => {
-          console.log('[MQTT] Koneksi dibersihkan');
-        });
-      }
-    };
-  }, [client]);
+  const clearError = useCallback(() => setError(null), []);
 
-  // Buat value object yang stabil untuk mencegah re-render yang tidak perlu
-  const contextValue = useMemo(() => ({
+  const value = useMemo(() => ({
     client,
     isConnected,
     connect,
@@ -171,6 +271,10 @@ export const MqttProvider: React.FC<{ children: React.ReactNode }> = ({ children
     unsubscribe,
     publish,
     messages,
+    activeDevices,
+    setActiveDevices,
+    error,
+    clearError,
   }), [
     client,
     isConnected,
@@ -180,10 +284,13 @@ export const MqttProvider: React.FC<{ children: React.ReactNode }> = ({ children
     unsubscribe,
     publish,
     messages,
+    activeDevices,
+    error,
+    clearError
   ]);
 
   return (
-    <MqttContext.Provider value={contextValue}>
+    <MqttContext.Provider value={value}>
       {children}
     </MqttContext.Provider>
   );
